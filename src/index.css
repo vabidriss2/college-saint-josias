@@ -1,0 +1,47 @@
+@import "tailwindcss";
+
+@keyframes marquee {
+  0% { transform: translateX(50%); }
+  100% { transform: translateX(-100%); }
+}
+
+.animate-marquee {
+  display: inline-block;
+  animation: marquee 25s linear infinite;
+  will-change: transform;
+}
+
+.animate-marquee:hover {
+  animation-play-state: paused;
+}
+
+@media print {
+  /* Hide every element on the page */
+  body * {
+    visibility: hidden;
+    height: auto;
+  }
+  /* Show only the bulletin sheet and its descendants */
+  #bulletin-official-sheet, #bulletin-official-sheet * {
+    visibility: visible;
+  }
+  #bulletin-official-sheet {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    margin: 0;
+    padding: 20px !important;
+    border: none !important;
+    box-shadow: none !important;
+    background: white !important;
+    color: black !important;
+  }
+  
+  /* Hide the modal wrapper overlay lines and scrollbars */
+  .fixed, .inset-0 {
+    background: transparent !important;
+    position: relative !important;
+    overflow: visible !important;
+  }
+}

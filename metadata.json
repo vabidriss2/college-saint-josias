@@ -1,0 +1,6 @@
+{
+  "name": "Saint Josias Smart School ERP",
+  "description": "Digitalizing Education for a Better Future - Complete Professional School ERP System",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
