@@ -464,6 +464,8 @@ export default function App() {
               currency={currency}
               onToggleCurrency={handleToggleCurrency}
               conversionRate={conversionRate}
+              loggedInUser={loggedInUser}
+              simulatedRole={simulatedRole}
             />
           )}
 
@@ -512,6 +514,17 @@ export default function App() {
               onUpdateConfig={handleUpdateConfig}
               logs={logs}
               onClearLogs={handleClearLogs}
+              students={students}
+              setStudents={setStudents}
+              teachers={teachers}
+              setTeachers={setTeachers}
+              classes={classes}
+              setClasses={setClasses}
+              subjects={subjects}
+              setSubjects={setSubjects}
+              transactions={transactions}
+              setTransactions={setTransactions}
+              systemAuditLog={systemAuditLog}
             />
           )}
         </main>

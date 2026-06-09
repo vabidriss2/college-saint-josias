@@ -23,11 +23,14 @@ import {
   Calculator,
   UserCheck,
   Check,
-  Percent
+  Percent,
+  Trash2,
+  Clock
 } from "lucide-react";
-import { Student, SchoolLevel } from "../types";
+import { Student, SchoolLevel, UserRole } from "../types";
 import { mockSubjects, initialConfig } from "../mockData";
 import { formatCurrency, formatCurrencyCompact, formatByCurrency } from "../utils";
+import { QRCodeSVG } from "qrcode.react";
 
 interface StudentModuleProps {
   students: Student[];
@@ -39,6 +42,8 @@ interface StudentModuleProps {
   currency: "USD" | "CDF";
   onToggleCurrency: () => void;
   conversionRate: number;
+  loggedInUser?: string;
+  simulatedRole?: UserRole;
 }
 
 export default function StudentModule({
@@ -51,6 +56,8 @@ export default function StudentModule({
   currency,
   onToggleCurrency,
   conversionRate,
+  loggedInUser = "Administration / Professeur",
+  simulatedRole,
 }: StudentModuleProps) {
   // Navigation & UI States
   const [searchTerm, setSearchTerm] = useState("");
@@ -71,18 +78,112 @@ export default function StudentModule({
   const [activeProfileTab, setActiveProfileTab] = useState<"academic" | "gestion">("academic");
   const [formLogCategory, setFormLogCategory] = useState<"Comportement" | "Note Administrative" | "Absence" | "Sanction" | "Autre">("Comportement");
   const [formLogComment, setFormLogComment] = useState("");
+  const [formLogAuthor, setFormLogAuthor] = useState(loggedInUser);
+  const [formLogDate, setFormLogDate] = useState<string>(() => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, "0");
+    const day = String(now.getDate()).padStart(2, "0");
+    const hours = String(now.getHours()).padStart(2, "0");
+    const minutes = String(now.getMinutes()).padStart(2, "0");
+    return `${year}-${month}-${day}T${hours}:${minutes}`;
+  });
+
+  // Synchronize formLogAuthor when loggedInUser prop changes
+  React.useEffect(() => {
+    setFormLogAuthor(loggedInUser);
+  }, [loggedInUser]);
+
+  // Accounting and payment donation states for Gestion tab
+  const [paymentAmount, setPaymentAmount] = useState<any>(150);
+  const [paymentTitle, setPaymentTitle] = useState<string>("Réglement Trimestre 3 & Soutien");
+  const [paymentMethod, setPaymentMethod] = useState<string>("Mobile Money");
+  const [paymentSuccess, setPaymentSuccess] = useState<boolean>(false);
+  const [lastPaymentDetails, setLastPaymentDetails] = useState<any>(null);
+
+  const handleAddPaymentDon = (e: React.FormEvent) => {
+    e.preventDefault();
+    const activeStudent = students.find(s => s.id === selectedStudentId);
+    if (!activeStudent || !paymentAmount || Number(paymentAmount) <= 0) return;
+
+    const amountNum = Number(paymentAmount);
+    const newPaidFees = activeStudent.paidFees + amountNum;
+
+    // Log this transaction into the student's unified logs
+    const transactionLog = {
+      id: `pay_${Date.now()}`,
+      date: new Date().toISOString().split("T")[0],
+      category: "Note Administrative" as const,
+      comment: `💰 [COMPTABILITÉ] Reçu de ${amountNum} $ (${paymentMethod}) transmis à la comptabilité de l'ERP pour : "${paymentTitle}". Règlement enregistré avec succès.`,
+      author: loggedInUser || "Administration"
+    };
+
+    const updatedLogs = [...(activeStudent.behavioralLogs || []), transactionLog];
+
+    onUpdateStudent({
+      ...activeStudent,
+      paidFees: newPaidFees,
+      behavioralLogs: updatedLogs
+    });
+
+    // Save transaction receipt details
+    setLastPaymentDetails({
+      id: `REC-${Date.now().toString().slice(-6)}`,
+      date: new Date().toISOString().split("T")[0],
+      amount: amountNum,
+      title: paymentTitle,
+      method: paymentMethod,
+      studentName: `${activeStudent.firstName} ${activeStudent.lastName}`,
+      regNumber: activeStudent.registrationNumber,
+      level: activeStudent.level,
+      className: activeStudent.className,
+      prevPaid: activeStudent.paidFees,
+      newPaid: newPaidFees,
+      totalFees: activeStudent.totalFees
+    });
+
+    setPaymentSuccess(true);
+    setPaymentAmount(150);
+    setTimeout(() => {
+      setPaymentSuccess(false);
+    }, 4500);
+  };
 
   const handleAddBehavioralLog = (e: React.FormEvent) => {
     e.preventDefault();
     const activeStudent = students.find(s => s.id === selectedStudentId);
     if (!activeStudent || !formLogComment.trim()) return;
 
+    // Beautifully format selected formLogDate (e.g., DD/MM/YYYY à HH:mm)
+    let formattedDate = "";
+    if (formLogDate) {
+      try {
+        const d = new Date(formLogDate);
+        const day = String(d.getDate()).padStart(2, "0");
+        const month = String(d.getMonth() + 1).padStart(2, "0");
+        const year = d.getFullYear();
+        const hours = String(d.getHours()).padStart(2, "0");
+        const minutes = String(d.getMinutes()).padStart(2, "0");
+        formattedDate = `${day}/${month}/${year} à ${hours}:${minutes}`;
+      } catch (err) {
+        formattedDate = formLogDate;
+      }
+    } else {
+      const d = new Date();
+      const day = String(d.getDate()).padStart(2, "0");
+      const month = String(d.getMonth() + 1).padStart(2, "0");
+      const year = d.getFullYear();
+      const hours = String(d.getHours()).padStart(2, "0");
+      const minutes = String(d.getMinutes()).padStart(2, "0");
+      formattedDate = `${day}/${month}/${year} à ${hours}:${minutes}`;
+    }
+
     const newLog = {
       id: `blog_${Date.now()}`,
-      date: new Date().toISOString().split("T")[0],
+      date: formattedDate,
       category: formLogCategory,
       comment: formLogComment,
-      author: "Admin Principal"
+      author: formLogAuthor.trim() || loggedInUser || "Administration"
     };
 
     const updatedLogs = [...(activeStudent.behavioralLogs || []), newLog];
@@ -92,6 +193,24 @@ export default function StudentModule({
     });
 
     setFormLogComment("");
+    // Reset date to current local timestamp
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, "0");
+    const day = String(now.getDate()).padStart(2, "0");
+    const hours = String(now.getHours()).padStart(2, "0");
+    const minutes = String(now.getMinutes()).padStart(2, "0");
+    setFormLogDate(`${year}-${month}-${day}T${hours}:${minutes}`);
+  };
+
+  const handleDeleteBehavioralLog = (logId: string) => {
+    const activeStudent = students.find(s => s.id === selectedStudentId);
+    if (!activeStudent) return;
+    const updatedLogs = (activeStudent.behavioralLogs || []).filter(log => log.id !== logId);
+    onUpdateStudent({
+      ...activeStudent,
+      behavioralLogs: updatedLogs
+    });
   };
 
   // New Student Form State
@@ -122,6 +241,9 @@ export default function StudentModule({
   const [statusCommentsText, setStatusCommentsText] = useState("");
   const [lastSyncedStudentId, setLastSyncedStudentId] = useState<string | null>(null);
 
+  const [adminNotesSaved, setAdminNotesSaved] = useState(false);
+  const [statusCommentsSaved, setStatusCommentsSaved] = useState(false);
+
   if (activeStudent && activeStudent.id !== lastSyncedStudentId) {
     setAdminNotesText(activeStudent.administrativeNotes || "");
     setStatusCommentsText(activeStudent.internalStatusComments || "");
@@ -134,6 +256,8 @@ export default function StudentModule({
       ...activeStudent,
       administrativeNotes: adminNotesText
     });
+    setAdminNotesSaved(true);
+    setTimeout(() => setAdminNotesSaved(false), 3000);
   };
 
   const handleSaveStatusComments = () => {
@@ -142,6 +266,8 @@ export default function StudentModule({
       ...activeStudent,
       internalStatusComments: statusCommentsText
     });
+    setStatusCommentsSaved(true);
+    setTimeout(() => setStatusCommentsSaved(false), 3000);
   };
 
   // Grade Input states
@@ -256,6 +382,144 @@ export default function StudentModule({
   return (
     <div className="space-y-6">
       
+      {/* Dynamic Pop-up Invoice Receipt Modal */}
+      {lastPaymentDetails && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/80 backdrop-blur-md flex items-center justify-center p-4 print:bg-white print:p-0">
+          <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden border border-indigo-200 animate-in fade-in zoom-in duration-200 print:shadow-none print:border-none print:w-full">
+            {/* Header Control (Invisible on print) */}
+            <div className="bg-indigo-950 text-white p-4 flex items-center justify-between print:hidden">
+              <span className="font-bold text-xs tracking-wider uppercase text-indigo-300 flex items-center gap-1.5 font-mono">
+                ✨ FACTURE COMPTABLE GÉNÉRÉE (Vitech ERP)
+              </span>
+              <button 
+                onClick={() => setLastPaymentDetails(null)}
+                className="text-xs bg-indigo-900 rounded-lg px-2.5 py-1 text-slate-200 hover:text-white transition cursor-pointer"
+              >
+                Fermer
+              </button>
+            </div>
+
+            {/* Receipt Preview */}
+            <div className="p-6 space-y-4 text-xs text-slate-700 print:p-0" id="bulletin-official-sheet">
+              <div className="text-center border-b pb-3 border-slate-100 flex flex-col items-center">
+                <div className="w-10 h-10 bg-indigo-900 text-white font-black text-sm flex items-center justify-center rounded-xl shadow mb-2">
+                  CSJ
+                </div>
+                <h3 className="font-black text-sm text-indigo-950 tracking-wider uppercase">COLLÈGE SAINT JOSIAS</h3>
+                <p className="text-[9px] text-slate-400">Kinshasa Gombe, République Démocratique du Congo</p>
+                <p className="text-[8px] text-slate-400 font-mono mt-0.5">Cellule ERP de Facturation & Comptabilité</p>
+                <div className="mt-2 text-[10px] font-bold text-emerald-700 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-100 inline-block print:border-none">
+                  ✓ Transmis avec succès à la Comptabilité Générale
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 bg-slate-50 p-4 rounded-xl border border-slate-100 font-mono text-[10px] print:bg-white print:border-none">
+                <div>
+                  <p className="text-slate-400">Reçu N° :</p>
+                  <strong className="text-slate-800 font-black">{lastPaymentDetails.id}</strong>
+                </div>
+                <div>
+                  <p className="text-slate-400">Date Opération :</p>
+                  <strong className="text-slate-800">{lastPaymentDetails.date}</strong>
+                </div>
+                <div className="col-span-2 border-t pt-2 mt-1 border-slate-200/50">
+                  <p className="text-slate-400">Élève :</p>
+                  <strong className="text-slate-900 text-xs font-black uppercase">{lastPaymentDetails.studentName}</strong>
+                </div>
+                <div>
+                  <p className="text-slate-400">Matricule :</p>
+                  <strong className="text-slate-800">{lastPaymentDetails.regNumber}</strong>
+                </div>
+                <div>
+                  <p className="text-slate-400">Classe / Niveau :</p>
+                  <strong className="text-slate-800">{lastPaymentDetails.className} ({lastPaymentDetails.level})</strong>
+                </div>
+              </div>
+
+              <div className="space-y-2 pt-2 text-xs">
+                <div className="flex justify-between font-bold text-slate-800 border-b pb-1.5 border-dashed border-slate-200">
+                  <span>Nature du Paiement / Libellé de l'opération</span>
+                  <span>Montant</span>
+                </div>
+                <div className="flex justify-between text-slate-700 py-1 font-semibold text-[11px]">
+                  <span>{lastPaymentDetails.title}</span>
+                  <span className="font-black text-slate-900 text-right">{formatByCurrency(lastPaymentDetails.amount, currency, conversionRate)}</span>
+                </div>
+                <div className="flex justify-between text-slate-500 text-[10px] italic">
+                  <span>Méthode de règlement :</span>
+                  <span className="font-bold text-indigo-700">{lastPaymentDetails.method}</span>
+                </div>
+              </div>
+
+              {/* Progress Summary */}
+              <div className="bg-indigo-50/50 p-4 rounded-xl border border-indigo-100 space-y-1.5 mt-3 print:bg-white print:border-slate-200">
+                <p className="text-[10px] font-extrabold text-indigo-950 uppercase tracking-wider">État Écolage de l'élève après encaissement :</p>
+                <div className="flex justify-between text-[11px] text-slate-600">
+                  <span>Ancien montant réglé :</span>
+                  <span>{formatByCurrency(lastPaymentDetails.prevPaid, currency, conversionRate)}</span>
+                </div>
+                <div className="flex justify-between text-[11px] text-indigo-950 font-bold border-t border-indigo-100/50 pt-1">
+                  <span>Nouveau total validé :</span>
+                  <span className="text-emerald-700">{formatByCurrency(lastPaymentDetails.newPaid, currency, conversionRate)}</span>
+                </div>
+                <div className="flex justify-between text-[11px] text-rose-700 font-extrabold">
+                  <span>Solde restant à devoir :</span>
+                  <span>{formatByCurrency(lastPaymentDetails.totalFees - lastPaymentDetails.newPaid, currency, conversionRate)}</span>
+                </div>
+              </div>
+
+              {/* QR Code and verification on receipt */}
+              <div className="flex items-center gap-4 bg-slate-50 p-3 rounded-xl border border-slate-100 mt-2 print:bg-white print:border-none">
+                <div className="shrink-0 p-1 bg-white border border-slate-200 rounded-lg">
+                  <QRCodeSVG 
+                    value={`CSJ-INVOICE-${lastPaymentDetails.id}-${lastPaymentDetails.regNumber}`}
+                    size={48}
+                    level="Q"
+                    fgColor="#1e1b4b"
+                    className="w-12 h-12 block"
+                  />
+                </div>
+                <div>
+                  <p className="text-[8.5px] font-mono text-slate-500 uppercase tracking-wider">AUTHENTIFICATION SECURE DE DON</p>
+                  <p className="text-[8px] text-slate-400 mt-0.5 leading-relaxed">
+                    Ce reçu certifie que les fonds ont été imputés de la scolarité de l'élève et reversés au compte trésorier de l'institution.
+                  </p>
+                </div>
+              </div>
+
+              {/* Certifying markings */}
+              <div className="flex justify-between items-center pt-3 border-t border-slate-100 text-[9px] text-slate-400 font-mono">
+                <div>
+                  <p>Guichetier ERP : <span className="text-slate-700 font-semibold">{loggedInUser}</span></p>
+                  <p>Fait à Kinshasa le {lastPaymentDetails.date}</p>
+                </div>
+                <div className="border-4 border-emerald-600/35 px-2.5 py-1 bg-emerald-50 text-emerald-700 rounded-lg font-black tracking-widest text-[9px] transform rotate-3 select-none">
+                  CAISSE CONCE VALIDÉ
+                </div>
+              </div>
+            </div>
+
+            {/* Actions (Invisible on print) */}
+            <div className="p-4 bg-slate-50 border-t border-slate-100 flex gap-2 print:hidden">
+              <button
+                onClick={() => {
+                  window.print();
+                }}
+                className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-500 rounded-lg text-white font-extrabold text-xs transition flex items-center justify-center gap-1.5 shadow"
+              >
+                <Printer className="w-4 h-4" /> Imprimer / Exporter le Reçu
+              </button>
+              <button
+                onClick={() => setLastPaymentDetails(null)}
+                className="flex-1 py-2.5 bg-slate-200 hover:bg-slate-300 rounded-lg text-slate-700 font-bold text-xs transition"
+              >
+                Fermer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Dynamic PDF Report Bulletin Simulator Modal */}
       {bulletinStudent && (
         <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/70 backdrop-blur-md flex items-center justify-center p-4">
@@ -307,24 +571,69 @@ export default function StudentModule({
               </div>
 
               {/* Patient/Student Meta Info */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-slate-50 border border-slate-200 rounded-xl">
-                <div className="space-y-1 text-xs">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-5 p-5 bg-gradient-to-br from-slate-50 to-indigo-50/10 border border-slate-200 rounded-2xl relative overflow-hidden shadow-sm">
+                
+                {/* Visual Watermark */}
+                <div className="absolute right-0 top-0 text-[60px] font-black text-slate-100/30 select-none pointer-events-none transform translate-x-4 -translate-y-4 font-mono">
+                  CSJ
+                </div>
+
+                <div className="space-y-1.5 text-xs z-10">
+                  <h5 className="text-[10px] font-bold text-indigo-900 uppercase tracking-widest mb-1 font-mono">Identité Scolaire</h5>
                   <p><span className="text-slate-400">Élève :</span> <strong className="text-slate-950 font-bold text-sm">{bulletinStudent.firstName} {bulletinStudent.lastName}</strong></p>
-                  <p><span className="text-slate-400">Matricule :</span> <code className="font-mono font-bold bg-slate-200 px-1 rounded">{bulletinStudent.registrationNumber}</code></p>
+                  <p><span className="text-slate-400">Matricule :</span> <code className="font-mono font-bold bg-slate-200 px-1.5 py-0.5 rounded text-[10px]">{bulletinStudent.registrationNumber}</code></p>
                   <p><span className="text-slate-400">Date de naissance :</span> {bulletinStudent.birthDate}</p>
                   <p><span className="text-slate-400">Niveau d'étude :</span> {bulletinStudent.level} ({bulletinStudent.className})</p>
                 </div>
-                <div className="space-y-1 text-xs md:border-l md:pl-4 border-slate-200">
+
+                <div className="space-y-1.5 text-xs md:border-l md:pl-5 border-slate-200 z-10">
+                  <h5 className="text-[10px] font-bold text-emerald-800 uppercase tracking-widest mb-1 font-mono">Administration & Tutelle</h5>
                   <p><span className="text-slate-400">Tuteur Légal / Parent :</span> <strong>{bulletinStudent.parentName}</strong></p>
-                  <p><span className="text-slate-400">Contact Téléphone :</span> {bulletinStudent.parentPhone}</p>
+                  <p><span className="text-slate-400">Téléphone Parent :</span> {bulletinStudent.parentPhone}</p>
                   <p><span className="text-slate-400">Date d'inscription :</span> {bulletinStudent.dateEnrolled}</p>
-                  <p><span className="text-slate-400">Statut Financier :</span> <span className="font-bold text-indigo-700">À jour ({formatCurrency(bulletinStudent.paidFees)})</span></p>
+                  <p><span className="text-slate-400">Statut Financier :</span> <span className="font-extrabold text-indigo-700 bg-indigo-50 border border-indigo-100 px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wider">À jour (CSJ-VALIDE)</span></p>
                 </div>
+
+                {/* Audit & QR Verification Panel in Pro Max styling */}
+                <div className="space-y-1.5 text-xs md:border-l md:pl-5 border-slate-200 z-10 flex flex-col items-center md:items-start justify-center">
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+                    <h5 className="text-[9px] font-extrabold text-indigo-950 uppercase tracking-widest font-mono">AUTHENTIFICATION AUDIT PRO MAX</h5>
+                  </div>
+                  
+                  <div className="flex items-center gap-3 w-full">
+                    {/* QR Code Graphic Frame */}
+                    <div className="relative p-1.5 bg-white border border-indigo-950 rounded-xl shadow-sm shrink-0 group hover:scale-[1.02] transition-transform duration-300 print:shadow-none print:border-indigo-950">
+                      {/* Corner crop marks for high-tech aesthetic */}
+                      <span className="absolute top-0 left-0 w-2 h-2 border-t border-l border-indigo-600 -translate-x-0.5 -translate-y-0.5"></span>
+                      <span className="absolute top-0 right-0 w-2 h-2 border-t border-r border-indigo-600 translate-x-0.5 -translate-y-0.5"></span>
+                      <span className="absolute bottom-0 left-0 w-2 h-2 border-b border-l border-indigo-600 -translate-x-0.5 translate-y-0.5"></span>
+                      <span className="absolute bottom-0 right-0 w-2 h-2 border-b border-r border-indigo-600 translate-x-0.5 translate-y-0.5"></span>
+                      
+                      <QRCodeSVG 
+                        value={`CSJ-VERIFY-${bulletinStudent.registrationNumber}-${bulletinStudent.id}`}
+                        size={64}
+                        level="Q"
+                        fgColor="#1e1b4b"
+                        includeMargin={false}
+                        className="w-16 h-16 object-contain block"
+                      />
+                    </div>
+                    
+                    <div className="space-y-0.5">
+                      <p className="text-[9px] font-bold text-slate-800 tracking-wide font-mono select-all">REF: CSJ-{bulletinStudent.registrationNumber}</p>
+                      <p className="text-[7.5px] text-slate-400 leading-normal max-w-[150px]">
+                        Scannez pour valider l'assiduité, les notes et le relevé d'écolage auprès de la cellule Vitech Africa (vab&idriss).
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
               </div>
 
               {/* Grades Table */}
               <div className="overflow-x-auto border border-slate-900 rounded-lg">
-                <table className="w-full text-left text-xs border-collapse">
+                <table className="w-full min-w-[650px] sm:min-w-full text-left text-xs border-collapse">
                   <thead>
                     <tr className="bg-slate-900 text-white divide-x divide-slate-700">
                       <th className="py-2 px-3 font-bold">Matière</th>
@@ -868,9 +1177,13 @@ export default function StudentModule({
                       <FileText className="w-4 h-4 text-indigo-500" />
                       Notes Administratives de Direction
                     </h3>
-                    {activeStudent.administrativeNotes && (
-                      <span className="text-[9px] bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded font-black">Enregistré</span>
-                    )}
+                    {adminNotesSaved ? (
+                      <span className="text-[10px] bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full font-bold animate-bounce">
+                        ✓ Enregistré avec succès !
+                      </span>
+                    ) : activeStudent.administrativeNotes ? (
+                      <span className="text-[9px] bg-emerald-55 text-emerald-600 border border-emerald-200 px-1.5 py-0.5 rounded font-black">Enregistré</span>
+                    ) : null}
                   </div>
                   <p className="text-[11px] text-slate-400">
                     Saisissez des remarques de direction à long terme (prises en charge particulières, antécédents médicaux d'importance, suivi exceptionnel).
@@ -887,7 +1200,7 @@ export default function StudentModule({
                       onClick={handleSaveAdminNotes}
                       className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-[10px] uppercase rounded-lg shadow transition active:scale-95 duration-100 cursor-pointer"
                     >
-                      Enregistrer les Notes Administratives
+                      {adminNotesSaved ? "Notes Sauvegardées !" : "Enregistrer les Notes Administratives"}
                     </button>
                   </div>
                 </div>
@@ -902,8 +1215,18 @@ export default function StudentModule({
                   <div className="space-y-3.5 max-h-[400px] overflow-y-auto pr-1">
                     {(activeStudent.behavioralLogs && activeStudent.behavioralLogs.length > 0) ? (
                       activeStudent.behavioralLogs.map((log) => (
-                        <div key={log.id} className="p-4 bg-slate-50 rounded-xl border border-slate-100 relative">
-                          <div className="flex items-center justify-between mb-2">
+                        <div key={log.id} className="p-4 bg-slate-50 hover:bg-slate-100/70 transition-colors rounded-xl border border-slate-100 relative group">
+                          {/* Delete button, absolutely positioned and styled beautifully */}
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteBehavioralLog(log.id)}
+                            className="absolute top-3.5 right-3.5 p-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-lg opacity-0 group-hover:opacity-100 focus:opacity-100 transition duration-150 cursor-pointer"
+                            title="Supprimer cette observation"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+
+                          <div className="flex items-center justify-between mb-2 pr-6">
                             <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase ${
                               log.category === "Comportement" ? "bg-emerald-50 text-emerald-700 border border-emerald-200" :
                               log.category === "Sanction" ? "bg-rose-50 text-rose-700 border border-rose-200" :
@@ -912,7 +1235,10 @@ export default function StudentModule({
                             }`}>
                               {log.category}
                             </span>
-                            <span className="text-[10px] font-mono text-slate-400">{log.date}</span>
+                            <span className="text-[10px] font-mono text-slate-500 flex items-center gap-1 bg-slate-200/50 px-2 py-0.5 rounded-full font-bold">
+                              <Clock className="w-3 h-3 text-slate-400 shrink-0" />
+                              {log.date}
+                            </span>
                           </div>
                           <p className="text-xs text-slate-700 leading-relaxed font-semibold">{log.comment}</p>
                           <div className="mt-2.5 pt-2 border-t border-slate-100 flex justify-between items-center text-[10px] text-slate-400">
@@ -946,7 +1272,7 @@ export default function StudentModule({
                     <div className="space-y-1">
                       <label className="font-bold text-slate-600 block">Rubrique Disciplinaire</label>
                       <select
-                        className="w-full p-2.5 border rounded-lg bg-white text-slate-800"
+                        className="w-full p-2.5 border rounded-lg bg-white text-slate-805 text-slate-800"
                         value={formLogCategory}
                         onChange={e => setFormLogCategory(e.target.value as any)}
                       >
@@ -956,6 +1282,29 @@ export default function StudentModule({
                         <option value="Sanction">Sanction / Mesure</option>
                         <option value="Autre">Autre dossier</option>
                       </select>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="font-bold text-slate-600 block">Auteur de l'observation</label>
+                      <input
+                        type="text"
+                        className="w-full p-2.5 border rounded-lg bg-white text-slate-800 focus:ring-2 focus:ring-indigo-500 outline-none"
+                        value={formLogAuthor}
+                        onChange={e => setFormLogAuthor(e.target.value)}
+                        placeholder="Ex: Prof. Principal, Jean Yao"
+                        required
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="font-bold text-slate-600 block">Date & Heure de l'observation</label>
+                      <input
+                        type="datetime-local"
+                        className="w-full p-2.5 border rounded-lg bg-white text-slate-800 focus:ring-2 focus:ring-indigo-500 outline-none font-mono text-[11px]"
+                        value={formLogDate}
+                        onChange={e => setFormLogDate(e.target.value)}
+                        required
+                      />
                     </div>
 
                     <div className="space-y-1">
@@ -979,15 +1328,128 @@ export default function StudentModule({
                   </form>
                 </div>
 
+                {/* ERP SCHOOL INVOICES & DONATION MANAGER FOR ACCOUNTING DEPT (Don à la comptabilité) */}
+                <div className="p-5 bg-white rounded-xl shadow-sm border border-slate-100 space-y-4">
+                  <div className="flex items-center justify-between pb-2 border-b border-indigo-50">
+                    <h3 className="font-extrabold text-slate-800 text-xs uppercase tracking-wider flex items-center gap-2">
+                      <Calculator className="w-4 h-4 text-emerald-500" />
+                      💰 Comptabilité, Facture & Don
+                    </h3>
+                    {paymentSuccess && (
+                      <span className="text-[9px] bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full font-black animate-bounce">
+                        Nouveau versement comptabilisé !
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="space-y-1">
+                    <p className="text-[10px] text-slate-400 leading-normal">
+                      Paiements écolage à enregistrer. La validation mettra à jour instantanément la comptabilité générale de l'établissement.
+                    </p>
+                    <div className="grid grid-cols-3 gap-2 py-2 text-center text-[10px] font-semibold">
+                      <div className="p-2 bg-slate-50 border rounded-lg">
+                        <span className="text-slate-400 block text-[8px]">Exigible</span>
+                        <strong className="text-slate-800">{formatByCurrency(activeStudent.totalFees, currency, conversionRate)}</strong>
+                      </div>
+                      <div className="p-2 bg-emerald-50/50 border border-emerald-100 rounded-lg">
+                        <span className="text-emerald-600 block text-[8px]">Réglé</span>
+                        <strong className="text-emerald-700">{formatByCurrency(activeStudent.paidFees, currency, conversionRate)}</strong>
+                      </div>
+                      <div className="p-2 bg-rose-50/50 border border-rose-100 rounded-lg">
+                        <span className="text-rose-600 block text-[8px]">Reste</span>
+                        <strong className="text-rose-700">{formatByCurrency(activeStudent.totalFees - activeStudent.paidFees, currency, conversionRate)}</strong>
+                      </div>
+                    </div>
+                  </div>
+
+                  <form onSubmit={handleAddPaymentDon} className="space-y-3.5 text-xs">
+                    <div className="space-y-1">
+                      <label className="font-bold text-slate-600 block">Montant du versement (USD / CDF équiv.)</label>
+                      <input
+                        type="number"
+                        min="1"
+                        className="w-full p-2.5 border rounded-lg bg-white text-slate-800 font-bold focus:ring-2 focus:ring-emerald-500 outline-none"
+                        value={paymentAmount}
+                        onChange={e => setPaymentAmount(e.target.value)}
+                        placeholder="Ex: 100"
+                        required
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="font-bold text-slate-600 block">Libellé / Titre de la transaction / Don</label>
+                      <input
+                        type="text"
+                        className="w-full p-2.5 border rounded-lg bg-white text-slate-800 focus:ring-2 focus:ring-emerald-500 outline-none"
+                        value={paymentTitle}
+                        onChange={e => setPaymentTitle(e.target.value)}
+                        placeholder="Ex: Frais Scolaires - Trimestre 3"
+                        required
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="font-bold text-slate-600 block">Mode de paiement / Canal de règlement</label>
+                      <select
+                        className="w-full p-2.5 border rounded-lg bg-white text-slate-800"
+                        value={paymentMethod}
+                        onChange={e => setPaymentMethod(e.target.value)}
+                      >
+                        <option value="Mobile Money">Mobile Money (M-Pesa, Orange, Airtel)</option>
+                        <option value="Espèces">Espèces (Versement physique à la caisse)</option>
+                        <option value="Banque">Virement Bancaire (Rawbank, TMB)</option>
+                        <option value="Don & Subvention">Donation / Prise en charge extérieure</option>
+                      </select>
+                    </div>
+
+                    <div className="pt-1 flex items-start gap-2 text-[10px] text-slate-500">
+                      <input
+                        type="checkbox"
+                        checked
+                        disabled
+                        className="mt-0.5 rounded border-amber-300 text-amber-600 focus:ring-amber-500 w-3.5 h-3.5 shrink-0"
+                      />
+                      <span>Générer automatiquement le reçu officiel et transmettre l'écriture comptable à la Caisse Centrale.</span>
+                    </div>
+
+                    <div className="flex gap-2 pt-1 font-extrabold uppercase text-[10px]">
+                      <button
+                        type="submit"
+                        className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg transition shadow-sm active:scale-95 duration-100 cursor-pointer text-center"
+                      >
+                        Enregistrer & Transmettre
+                      </button>
+                      
+                      {lastPaymentDetails && (
+                        <button
+                          type="button"
+                          onClick={() => setLastPaymentDetails({...lastPaymentDetails})} // reopen
+                          className="px-3.5 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 border rounded-lg transition cursor-pointer"
+                          title="Ré-ouvrir la dernière facture émise"
+                        >
+                          🎫 Reçu
+                        </button>
+                      )}
+                    </div>
+                  </form>
+                </div>
+
                 {/* Internal Comment on Student Status */}
                 <div className="p-5 bg-white rounded-xl shadow-sm border border-slate-100 space-y-3">
                   <h3 className="font-extrabold text-slate-800 text-xs uppercase tracking-wider pb-2 border-b border-indigo-50 flex items-center gap-2">
                     <UserCheck className="w-4 h-4 text-amber-500" />
                     Commentaire Interne sur le Statut
                   </h3>
-                  <p className="text-[11px] text-slate-400">
-                    Mention interne liée à l'évolution du statut de l'élève au sein de l'établissement.
-                  </p>
+                  <div className="flex justify-between items-center">
+                    <p className="text-[11px] text-slate-400">
+                      Mention interne liée à l'évolution du statut de l'élève au sein de l'établissement.
+                    </p>
+                    {statusCommentsSaved && (
+                      <span className="text-[9px] bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded font-bold animate-pulse">
+                        Sauvé
+                      </span>
+                    )}
+                  </div>
                   <input
                     type="text"
                     className="w-full p-2.5 border rounded-lg bg-slate-50 text-xs text-slate-800 focus:ring-2 focus:ring-indigo-500 outline-none transition"
@@ -999,7 +1461,7 @@ export default function StudentModule({
                     onClick={handleSaveStatusComments}
                     className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-[10px] uppercase rounded-lg shadow-sm transition active:scale-95 duration-100 cursor-pointer"
                   >
-                    Mettre à jour le Commentaire de Statut
+                    {statusCommentsSaved ? "Statut Mis à Jour !" : "Mettre à jour le Commentaire de Statut"}
                   </button>
                 </div>
 
