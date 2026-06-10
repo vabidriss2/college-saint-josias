@@ -31,6 +31,8 @@ import { Student, SchoolLevel, UserRole } from "../types";
 import { mockSubjects, initialConfig } from "../mockData";
 import { formatCurrency, formatCurrencyCompact, formatByCurrency } from "../utils";
 import { QRCodeSVG } from "qrcode.react";
+import jsPDF from "jspdf";
+import "jspdf-autotable";
 
 interface StudentModuleProps {
   students: Student[];
@@ -67,11 +69,20 @@ export default function StudentModule({
   const [bulletinStudent, setBulletinStudent] = useState<Student | null>(null);
 
   const handleGeneratePDF = (student: Student) => {
-    setBulletinStudent(student);
-    // Let DOM update so printing content is rendered before triggering window.print()
-    setTimeout(() => {
-      window.print();
-    }, 250);
+    const doc = new jsPDF();
+    doc.text(`Rapport Académique: ${student.firstName} ${student.lastName}`, 14, 20);
+    
+    (doc as any).autoTable({
+      head: [['Matière', 'Coeff', 'Annuelle']],
+      body: student.grades.map(g => [
+        mockSubjects.find(s => s.id === g.subjectId)?.name || 'N/A',
+        mockSubjects.find(s => s.id === g.subjectId)?.coefficient || 0,
+        calculateOverallMoyenne(student)
+      ]),
+      startY: 30
+    });
+    
+    doc.save(`Rapport_${student.firstName}.pdf`);
   };
 
   // Profile Tab toggles with log states
@@ -534,9 +545,15 @@ export default function StudentModule({
               <div className="flex gap-2">
                 <button 
                   onClick={handleTriggerPrintSimulate}
+                  className="flex items-center gap-1.5 px-4 py-1.5 bg-slate-700 hover:bg-slate-600 rounded-lg text-xs font-bold transition cursor-pointer"
+                >
+                  <Printer className="w-3.5 h-3.5" /> Imprimer
+                </button>
+                <button 
+                  onClick={() => handleGeneratePDF(bulletinStudent)}
                   className="flex items-center gap-1.5 px-4 py-1.5 bg-indigo-600 hover:bg-indigo-500 rounded-lg text-xs font-bold transition cursor-pointer"
                 >
-                  <Printer className="w-3.5 h-3.5" /> Imprimer / Exporter PDF
+                  <FileText className="w-3.5 h-3.5" /> Générer PDF
                 </button>
                 <button 
                   onClick={() => setBulletinStudent(null)}

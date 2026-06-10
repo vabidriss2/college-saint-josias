@@ -4,16 +4,18 @@
  */
 
 import React, { useState } from "react";
+import jsPDF from "jspdf";
+import "jspdf-autotable";
 import { 
   Settings, 
   Settings2, 
   BellRing, 
   ShieldAlert, 
   Activity, 
-  ToggleLeft, 
-  ToggleRight, 
-  RefreshCw, 
-  Save, 
+  ToggleLeft,
+  ToggleRight,
+  RefreshCw,
+  Save,
   UserX,
   UserCheck,
   CheckCircle,
@@ -31,7 +33,8 @@ import {
   Award,
   BookOpen,
   Coins,
-  ShieldCheck
+  ShieldCheck,
+  FileText
 } from "lucide-react";
 import { SchoolConfig, AuditLog, User, UserRole, Student, Teacher, ClassRoom, Subject, FinancialTransaction, SchoolLevel } from "../types";
 
@@ -51,6 +54,8 @@ interface AdminPanelProps {
   transactions: FinancialTransaction[];
   setTransactions: React.Dispatch<React.SetStateAction<FinancialTransaction[]>>;
   systemAuditLog: (action: string, role: UserRole) => void;
+  isDarkMode: boolean;
+  setIsDarkMode: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
 export default function AdminPanel({
@@ -69,6 +74,8 @@ export default function AdminPanel({
   transactions,
   setTransactions,
   systemAuditLog,
+  isDarkMode,
+  setIsDarkMode,
 }: AdminPanelProps) {
   // Config Field states
   const [formName, setFormName] = useState(config.schoolName);
@@ -420,6 +427,25 @@ export default function AdminPanel({
     alert("Configurations générales de l'école appliquées avec succès !");
   };
 
+  const handleExportAuditLogs = () => {
+    const doc = new jsPDF();
+    doc.text("Journal d'audit de sécurité complet - Collège Saint Josias", 14, 15);
+    (doc as any).autoTable({
+        head: [['Utilisateur', 'Rôle', 'Action', 'IP', 'Date']],
+        body: logs.map(log => [
+            log.userName,
+            log.userRole,
+            log.action,
+            log.ipAddress,
+            new Date(log.timestamp).toLocaleString("fr-FR")
+        ]),
+        startY: 25,
+        theme: 'striped',
+        headStyles: { fillColor: [79, 70, 229] },
+    });
+    doc.save(`audit_logs_${new Date().toISOString().split('T')[0]}.pdf`);
+  };
+
   const toggleUserStatus = (id: string) => {
     setUsers(users.map(u => {
       if (u.id === id) {
@@ -518,7 +544,7 @@ export default function AdminPanel({
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-3 gap-4">
               <div className="space-y-1">
                 <label className="font-bold text-slate-600 block">Année Académique Active</label>
                 <input 
@@ -530,17 +556,29 @@ export default function AdminPanel({
               </div>
               
               <div className="space-y-1">
-                <label className="font-bold text-slate-600 block">Thème de Couleur d'Accentuation</label>
+                <label className="font-bold text-slate-600 block">Thème de Couleur</label>
                 <select 
                   className="w-full p-2.5 border rounded-lg bg-white text-slate-800"
                   value={formColor}
                   onChange={e => setFormColor(e.target.value)}
                 >
-                  <option value="indigo">Bleu Impérial (Indigo)</option>
-                  <option value="emerald">Vert Émeraude (Scolaire)</option>
-                  <option value="amber">Ambre Scolaire (Chaud)</option>
-                  <option value="rose">Bordeaux Chic (Rose)</option>
+                  <option value="indigo">Bleu Impérial</option>
+                  <option value="emerald">Vert Émeraude</option>
+                  <option value="amber">Ambre Scolaire</option>
+                  <option value="rose">Bordeaux Chic</option>
                 </select>
+              </div>
+              
+              <div className="space-y-1">
+                <label className="font-bold text-slate-600 block">Mode Sombre</label>
+                <button 
+                  type="button"
+                  onClick={() => setIsDarkMode(!isDarkMode)}                
+                  className={`w-full p-2.5 border rounded-lg font-bold flex items-center justify-center gap-2 ${isDarkMode ? 'bg-slate-800 text-white border-slate-700' : 'bg-white text-slate-800 border-slate-200'}`}
+                >
+                  {isDarkMode ? <ToggleRight className="w-4 h-4 text-emerald-400" /> : <ToggleLeft className="w-4 h-4 text-slate-400" />}
+                  {isDarkMode ? "ON" : "OFF"}
+                </button>
               </div>
             </div>
 
@@ -563,9 +601,17 @@ export default function AdminPanel({
                 <Activity className="w-4 h-4 animate-pulse text-indigo-400" />
                 SYSTEM SHIELD SECURITY LOGS
               </h3>
-              <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[8px] font-black bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 uppercase tracking-widest font-mono">
-                ● Live Auditing
-              </span>
+              <div className="flex items-center gap-2">
+                <button 
+                  onClick={handleExportAuditLogs}
+                  className="flex items-center gap-1.5 text-[10px] font-black bg-indigo-600 text-white px-3 py-1.5 rounded hover:bg-indigo-700 cursor-pointer border border-indigo-500 shadow-sm transition"
+                >
+                  <FileText className="w-3.5 h-3.5" /> Exporter PDF complet
+                </button>
+                <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[8px] font-black bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 uppercase tracking-widest font-mono">
+                  ● Live Auditing
+                </span>
+              </div>
             </div>
             
             {/* Real-time Telemetry Dashboard */}

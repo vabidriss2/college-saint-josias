@@ -20,7 +20,9 @@ import {
   Megaphone,
   Printer,
   Calculator,
-  Calendar
+  Calendar, 
+  ShieldCheck,
+  HelpCircle
 } from "lucide-react";
 
 import { 
@@ -55,7 +57,10 @@ import FinanceModule from "./components/FinanceModule";
 import SchoolStructure from "./components/SchoolStructure";
 import AdminPanel from "./components/AdminPanel";
 import CourseSpace from "./components/CourseSpace";
+import FAQModule from "./components/FAQModule"; // Import new module
+import AISidebarPanel from "./components/AISidebarPanel"; // Import new sidebar AI module
 import LoginPage from "./components/LoginPage";
+import RegisterPage from "./components/RegisterPage";
 
 export default function App() {
   // Global States
@@ -69,8 +74,17 @@ export default function App() {
   const [logs, setLogs] = useState<AuditLog[]>(mockAuditLogs);
 
   // Authentication & session workspace state
+  const [authMode, setAuthMode] = useState<"login" | "register">("login");
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
   const [loggedInUser, setLoggedInUser] = useState<string>("");
+  const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
+    const saved = localStorage.getItem("isDarkMode");
+    return saved ? JSON.parse(saved) : false;
+  });
+
+  React.useEffect(() => {
+    localStorage.setItem("isDarkMode", JSON.stringify(isDarkMode));
+  }, [isDarkMode]);
 
   const handleLogin = (role: UserRole, name: string) => {
     setSimulatedRole(role);
@@ -238,6 +252,8 @@ export default function App() {
       return [
         { id: "students", label: "Mon Carnet Scolaire", icon: Users },
         { id: "courses", label: "Espace Cours/Leçons", icon: BookOpen },
+        { id: "ai", label: "Assistant IA", icon: Sparkles },
+        { id: "faq", label: "FAQ", icon: HelpCircle },
       ];
     }
 
@@ -273,11 +289,14 @@ export default function App() {
   };
 
   if (!isLoggedIn) {
-    return <LoginPage onLogin={handleLogin} />;
+    if (authMode === "register") {
+      return <RegisterPage onBack={() => setAuthMode("login")} onRegister={() => setAuthMode("login")} />;
+    }
+    return <LoginPage onLogin={handleLogin} onRegisterClick={() => setAuthMode("register")} />;
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col md:flex-row text-slate-800">
+    <div className={`min-h-screen ${isDarkMode ? "dark bg-slate-900 text-slate-100" : "bg-slate-50 text-slate-800"} flex flex-col md:flex-row`}>
       
       {/* Sidebar Navigation */}
       <aside className={`w-full md:w-64 bg-slate-900 text-white flex flex-col justify-between shrink-0 transition-all duration-300 md:static fixed inset-y-0 left-0 z-40 transform ${
@@ -429,6 +448,12 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-3 text-xs font-mono">
+            { (simulatedRole === UserRole.SUPER_ADMIN || simulatedRole === UserRole.ADMIN) && 
+              <div className="flex items-center gap-1.5 px-2 py-1 bg-emerald-50 rounded border border-emerald-200">
+                <ShieldCheck className="w-3 h-3 text-emerald-600" />
+                <span className="text-[9px] font-bold text-emerald-700 uppercase">2FA ACTIF</span>
+              </div>
+            }
             <div className="text-right hidden sm:block">
               <p className="font-extrabold text-slate-850">Console {simulatedRole}</p>
               <p className="text-[10px] text-slate-400">{new Date().toLocaleDateString()}</p>
@@ -440,7 +465,7 @@ export default function App() {
         </header>
 
         {/* Dynamic Nested Tab Renders */}
-        <main className="flex-1 overflow-y-auto p-6 max-w-7xl w-full mx-auto pb-12">
+        <main className="flex-1 overflow-y-auto p-4 md:p-6 max-w-7xl w-full mx-auto pb-12">
           {activeTab === "dashboard" && (
             <Dashboard 
               students={students}
@@ -487,6 +512,14 @@ export default function App() {
             />
           )}
 
+          {activeTab === "ai" && (
+            <AISidebarPanel />
+          )}
+
+          {activeTab === "faq" && (
+            <FAQModule />
+          )}
+
           {activeTab === "finance" && (
             <FinanceModule 
               transactions={transactions}
@@ -525,6 +558,8 @@ export default function App() {
               transactions={transactions}
               setTransactions={setTransactions}
               systemAuditLog={systemAuditLog}
+              isDarkMode={isDarkMode}
+              setIsDarkMode={setIsDarkMode}
             />
           )}
         </main>

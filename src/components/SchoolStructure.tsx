@@ -13,10 +13,31 @@ import {
   Percent, 
   ClipboardList, 
   UserSquare2,
-  Trash2
+  Trash2,
+  CalendarDays
 } from "lucide-react";
+import { DndProvider } from 'react-dnd';
+import { HTML5Backend } from 'react-dnd-html5-backend';
+import { Calendar, dateFnsLocalizer } from 'react-big-calendar';
+import withDragAndDrop from 'react-big-calendar/lib/addons/dragAndDrop';
+import { format, parse, startOfWeek, getDay } from 'date-fns';
+import { fr } from 'date-fns/locale';
 import { ClassRoom, Subject, SchoolLevel } from "../types";
 import { mockSubjects, mockClasses, mockTeachers } from "../mockData";
+
+const DnDCalendar = withDragAndDrop(Calendar);
+
+const locales = {
+  'fr': fr,
+};
+
+const localizer = dateFnsLocalizer({
+  format,
+  parse,
+  startOfWeek: () => startOfWeek(new Date(), { weekStartsOn: 1 }),
+  getDay,
+  locales,
+});
 
 interface SchoolStructureProps {
   classes: ClassRoom[];
@@ -31,8 +52,34 @@ export default function SchoolStructure({
   onAddClass,
   onAddSubject,
 }: SchoolStructureProps) {
-  // Tabs "Classes" or "Plan d'études"
-  const [activeTab, setActiveTab] = useState<"classes" | "subjects">("classes");
+  // Tabs "Classes", "Plan d'études" or "calendar"
+  const [activeTab, setActiveTab] = useState<"classes" | "subjects" | "calendar">("classes");
+  const [events, setEvents] = useState([
+    {
+      id: 1,
+      title: "Mathématiques - T1",
+      start: new Date(2026, 5, 10, 8, 0),
+      end: new Date(2026, 5, 10, 10, 0),
+    },
+    {
+      id: 2,
+      title: "Physique - T1",
+      start: new Date(2026, 5, 11, 9, 0),
+      end: new Date(2026, 5, 11, 11, 0),
+    },
+  ]);
+
+  const onEventDrop = ({ event, start, end }: any) => {
+    setEvents((prev) =>
+      prev.map((e) => (e.id === event.id ? { ...e, start, end } : e))
+    );
+  };
+
+  const onEventResize = ({ event, start, end }: any) => {
+    setEvents((prev) =>
+      prev.map((e) => (e.id === event.id ? { ...e, start, end } : e))
+    );
+  };
 
   // Add class states
   const [className, setClassName] = useState("");
@@ -98,6 +145,14 @@ export default function SchoolStructure({
         >
           <BookOpen className="w-4 h-4" /> Matières & Coefficients
         </button>
+        <button 
+          onClick={() => setActiveTab("calendar")}
+          className={`flex items-center gap-1.5 pb-2 text-xs font-bold px-1 transition relative cursor-pointer ${
+            activeTab === "calendar" ? "text-indigo-600 font-extrabold border-b-2 border-indigo-600" : "text-slate-400 hover:text-slate-600"
+          }`}
+        >
+          <CalendarDays className="w-4 h-4" /> Emploi du temps
+        </button>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -130,6 +185,21 @@ export default function SchoolStructure({
                   </div>
                 );
               })}
+            </div>
+          ) : activeTab === "calendar" ? (
+            <div className="h-128 bg-white p-4 rounded-xl border border-slate-100 shadow-sm">
+              <DndProvider backend={HTML5Backend}>
+                <DnDCalendar
+                  localizer={localizer}
+                  events={events}
+                  onEventDrop={onEventDrop}
+                  onEventResize={onEventResize}
+                  resizable
+                  startAccessor="start"
+                  endAccessor="end"
+                  style={{ height: '100%' }}
+                />
+              </DndProvider>
             </div>
           ) : (
             <div className="space-y-2 max-h-128 overflow-y-auto pr-1">

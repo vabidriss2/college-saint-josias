@@ -21,6 +21,18 @@ import {
   Search,
   BookOpen
 } from "lucide-react";
+import { 
+  LineChart, 
+  Line, 
+  XAxis, 
+  YAxis, 
+  CartesianGrid, 
+  Tooltip, 
+  ResponsiveContainer 
+} from "recharts";
+import AttendanceChart from "./AttendanceChart";
+import FinancialGauge from "./FinancialGauge";
+import ChatbotModule from "./ChatbotModule";
 import { Student, Teacher, ClassRoom, FinancialTransaction, AuditLog } from "../types";
 import { formatCurrency, formatCurrencyCompact } from "../utils";
 
@@ -45,7 +57,46 @@ export default function Dashboard({
 }: DashboardProps) {
   const [hoveredTx, setHoveredTx] = useState<string | null>(null);
 
-  // Math Calculations
+  // Monthly Attendance Calculation
+  const monthlyAttendanceData = React.useMemo(() => {
+    const months = ["Sept", "Oct", "Nov", "Déc", "Jan", "Fév", "Mar", "Avr", "Mai", "Juin"];
+    const monthlyData: { [key: string]: { present: number, total: number } } = {};
+    
+    months.forEach(m => monthlyData[m] = { present: 0, total: 0 });
+
+    students.forEach(s => {
+      s.attendance.forEach(a => {
+        const date = new Date(a.date);
+        const monthIndex = date.getMonth(); 
+        
+        let monthKey = "";
+        if (monthIndex === 8) monthKey = "Sept";
+        else if (monthIndex === 9) monthKey = "Oct";
+        else if (monthIndex === 10) monthKey = "Nov";
+        else if (monthIndex === 11) monthKey = "Déc";
+        else if (monthIndex === 0) monthKey = "Jan";
+        else if (monthIndex === 1) monthKey = "Fév";
+        else if (monthIndex === 2) monthKey = "Mar";
+        else if (monthIndex === 3) monthKey = "Avr";
+        else if (monthIndex === 4) monthKey = "Mai";
+        else if (monthIndex === 5) monthKey = "Juin";
+
+        if (monthKey && monthlyData[monthKey]) {
+          monthlyData[monthKey].total++;
+          if (a.status === "Présent" || a.status === "Retard") {
+            monthlyData[monthKey].present++;
+          }
+        }
+      });
+    });
+
+    return months.map(m => ({
+      name: m,
+      rate: monthlyData[m].total > 0 
+        ? Math.round((monthlyData[m].present / monthlyData[m].total) * 100) 
+        : 0
+    }));
+  }, [students]);
   const totalStudents = students.length;
   const activeStudents = students.filter(s => s.status === "Actif").length;
   const totalTeachers = teachers.length;
@@ -77,12 +128,18 @@ export default function Dashboard({
     ? Math.round((presentCount / totalAttendanceChecked) * 100) 
     : 95;
 
-  // Level Distribution
+// Level Distribution
   const levelCounts = {
     Maternel: students.filter(s => s.level === "Maternel").length,
     Primaire: students.filter(s => s.level === "Primaire").length,
     Secondaire: students.filter(s => s.level === "Secondaire").length,
   };
+
+  const levelData = [
+    { name: "Maternel", value: levelCounts.Maternel, color: "#818cf8" },
+    { name: "Primaire", value: levelCounts.Primaire, color: "#34d399" },
+    { name: "Secondaire", value: levelCounts.Secondaire, color: "#fbbf24" },
+  ];
 
   // Recent transactions
   const recentTx = [...transactions]
@@ -104,7 +161,7 @@ export default function Dashboard({
   return (
     <div className="space-y-6">
       {/* Welcome Banner */}
-      <div className="p-6 bg-gradient-to-r from-indigo-900 to-indigo-850 rounded-2xl text-white shadow-xl relative overflow-hidden">
+      <div className="p-4 md:p-6 bg-gradient-to-r from-indigo-900 to-indigo-850 rounded-2xl text-white shadow-xl relative overflow-hidden">
         <div className="absolute right-0 top-0 w-80 h-80 bg-white/5 rounded-full -mr-16 -mt-16 blur-2xl pointer-events-none"></div>
         <div className="absolute left-1/3 bottom-0 w-48 h-48 bg-indigo-500/10 rounded-full blur-xl pointer-events-none"></div>
         
@@ -114,18 +171,18 @@ export default function Dashboard({
               <Sparkles className="w-3.5 h-3.5" />
               Pilotage Éducatif Intelligent v2.0
             </div>
-            <h1 className="text-2xl md:text-3xl font-bold tracking-tight">Bonjour, Administrateur Principal !</h1>
-            <p className="text-indigo-200 mt-1 max-w-xl text-sm md:text-base">
+            <h1 className="text-xl md:text-3xl font-bold tracking-tight">Bonjour, Administrateur Principal !</h1>
+            <p className="text-indigo-200 mt-1 max-w-xl text-sm">
               Bienvenue sur le tableau de bord Saint Josias Smart School. Le système est au garde-à-vous, toutes les données comptables et scolaires sont consolidées.
             </p>
           </div>
-          <div className="flex items-center gap-3 bg-white/10 backdrop-blur-md p-4 rounded-xl">
-            <div className="p-3 bg-indigo-500 rounded-lg text-white">
-              <Calendar className="w-6 h-6" />
+          <div className="flex items-center gap-3 bg-white/10 backdrop-blur-md p-3 md:p-4 rounded-xl shrink-0">
+            <div className="p-2 md:p-3 bg-indigo-500 rounded-lg text-white">
+              <Calendar className="w-5 h-5 md:w-6 md:h-6" />
             </div>
             <div>
-              <p className="text-xs text-indigo-200 uppercase tracking-wider font-semibold">Année Académique</p>
-              <p className="text-lg font-bold">2025-2026</p>
+              <p className="text-[10px] md:text-xs text-indigo-200 uppercase tracking-wider font-semibold">Année Académique</p>
+              <p className="md:text-lg font-bold">2025-2026</p>
             </div>
           </div>
         </div>
@@ -221,118 +278,50 @@ export default function Dashboard({
         <div className="lg:col-span-2 p-6 bg-white rounded-xl shadow-sm border border-slate-100 flex flex-col justify-between">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h2 className="text-lg font-bold text-slate-800">Analyse de Trésorerie Mensuelle</h2>
-              <p className="text-xs text-slate-400">Recettes vs Dépenses comptables (Mai/Juin 2026)</p>
-            </div>
-            <span className="text-xs font-semibold text-indigo-600 bg-indigo-50 px-3 py-1 rounded-full">
-              Comptabilité consolidée
-            </span>
-          </div>
-
-          {/* Pure Responsive Custom SVG Line & Bar Composite Chart */}
-          <div className="w-full h-64 relative bg-slate-50 rounded-xl p-4 flex items-end justify-between overflow-hidden">
-            {/* Grid Lines */}
-            <div className="absolute inset-x-0 top-1/4 h-px bg-slate-200"></div>
-            <div className="absolute inset-x-0 top-2/4 h-px bg-slate-200"></div>
-            <div className="absolute inset-x-0 top-3/4 h-px bg-slate-200"></div>
-            
-            {/* Bars for Financial categories */}
-            <div className="relative z-10 w-full h-full flex items-end justify-around pt-6">
-              
-              {/* Column 1: Scolarité */}
-              <div className="flex flex-col items-center gap-2 group cursor-pointer">
-                <div className="w-12 bg-indigo-500 hover:bg-indigo-600 rounded-t-md transition-all duration-300" style={{ height: "130px" }}></div>
-                <span className="text-[10px] font-bold text-slate-500">Scolarités</span>
-                <span className="text-[10px] text-indigo-600 font-extrabold hidden group-hover:block absolute bottom-16 bg-white px-2 py-1 shadow rounded border">{formatCurrencyCompact(1900)}</span>
-              </div>
-
-              {/* Column 2: Salaires */}
-              <div className="flex flex-col items-center gap-2 group cursor-pointer">
-                <div className="w-12 bg-rose-400 hover:bg-rose-500 rounded-t-md transition-all duration-300" style={{ height: "180px" }}></div>
-                <span className="text-[10px] font-bold text-slate-500">Salaires</span>
-                <span className="text-[10px] text-rose-600 font-extrabold hidden group-hover:block absolute bottom-16 bg-white px-2 py-1 shadow rounded border">{formatCurrencyCompact(4650)}</span>
-              </div>
-
-              {/* Column 3: Autre Recettes */}
-              <div className="flex flex-col items-center gap-2 group cursor-pointer">
-                <div className="w-12 bg-emerald-400 hover:bg-emerald-500 rounded-t-md transition-all duration-300" style={{ height: "85px" }}></div>
-                <span className="text-[10px] font-bold text-slate-500">Inscriptions</span>
-                <span className="text-[10px] text-emerald-600 font-extrabold hidden group-hover:block absolute bottom-16 bg-white px-2 py-1 shadow rounded border">{formatCurrencyCompact(1230)}</span>
-              </div>
-
-              {/* Column 4: Maintenance */}
-              <div className="flex flex-col items-center gap-2 group cursor-pointer">
-                <div className="w-12 bg-amber-400 hover:bg-amber-500 rounded-t-md transition-all duration-300" style={{ height: "50px" }}></div>
-                <span className="text-[10px] font-bold text-slate-500">Matériel</span>
-                <span className="text-[10px] text-amber-600 font-extrabold hidden group-hover:block absolute bottom-16 bg-white px-2 py-1 shadow rounded border">{formatCurrencyCompact(690)}</span>
-              </div>
-
-            </div>
-
-            <div className="absolute left-3 top-3 bg-white/80 backdrop-blur px-2.5 py-1.5 rounded border border-slate-100 text-[10px] text-slate-500 space-y-1">
-              <div className="flex items-center gap-1"><span className="w-2.5 h-2.5 bg-indigo-500 rounded-full inline-block"></span> Recettes scolaires</div>
-              <div className="flex items-center gap-1"><span className="w-2.5 h-2.5 bg-rose-400 rounded-full inline-block"></span> Dépenses et Salaires</div>
+              <h2 className="text-lg font-bold text-slate-800">Analyses Globales</h2>
+              <p className="text-xs text-slate-400">Activités mensuelles : Trésorerie et Présence</p>
             </div>
           </div>
 
-          <div className="grid grid-cols-3 gap-2 text-center mt-4 pt-4 border-t border-slate-100">
-            <div>
-              <p className="text-xs text-slate-400 font-medium">Tx de Recouvrement</p>
-              <p className="text-base font-bold text-indigo-600">76 %</p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="p-4 bg-slate-50 rounded-xl">
+             <h4 className="text-xs font-bold text-slate-500 mb-2 uppercase">Évolution mensuelle de la présence (%)</h4>
+             <AttendanceChart students={students} />
+           </div>
+
+            <div className="p-4 bg-slate-50 rounded-xl relative overflow-hidden">
+               <h4 className="text-xs font-bold text-slate-500 mb-2 uppercase">Santé Financière</h4>
+               <FinancialGauge revenue={totalRevenue} breakEven={6000} />
             </div>
-            <div>
-              <p className="text-xs text-slate-400 font-medium">Dépenses Fixes</p>
-              <p className="text-sm font-bold text-rose-500">{formatCurrencyCompact(4650)} / m</p>
-            </div>
-            <div>
-              <p className="text-xs text-slate-400 font-medium">Seuil de Rentabilité</p>
-              <p className="text-sm font-bold text-slate-700">{formatCurrencyCompact(6000)}</p>
-            </div>
-          </div>
-        </div>
+           </div>
+         </div>
 
         {/* Level Distribution Widget & Quick Enroll Shortcut */}
         <div className="p-6 bg-white rounded-xl shadow-sm border border-slate-100 flex flex-col justify-between">
           <div>
             <h2 className="text-lg font-bold text-slate-800">Répartition par Niveau</h2>
-            <p className="text-xs text-slate-400 mb-4">Structure d'élèves de l'établissement</p>
             
-            <div className="space-y-4">
-              {/* Maternel */}
-              <div className="space-y-1">
-                <div className="flex justify-between text-xs">
-                  <span className="font-semibold text-slate-600 flex items-center gap-1.5">
-                    <span className="w-2.5 h-2.5 bg-indigo-400 rounded-full"></span>Maternel</span>
-                  <span className="text-slate-500 font-bold">{levelCounts.Maternel} ({Math.round(levelCounts.Maternel / totalStudents * 100)}%)</span>
-                </div>
-                <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
-                  <div className="bg-indigo-400 h-full rounded-full" style={{ width: `${(levelCounts.Maternel / totalStudents) * 100}%` }}></div>
-                </div>
+            {/* Simple CSS-based Pie Chart representation */}
+            <div className="flex justify-center my-6">
+              <div className="relative w-32 h-32 rounded-full border-[10px] border-slate-100 flex items-center justify-center">
+                 {levelData.map((d, i) => (
+                    <div key={d.name} className="absolute w-full h-full rounded-full" style={{
+                      clipPath: `polygon(50% 50%, ${i * 33}% 0, ${(i + 1) * 33}% 0)`,
+                      backgroundColor: d.color
+                    }}></div>
+                 ))}
+                 <div className="absolute inset-0 flex items-center justify-center font-black text-xl text-slate-700">{totalStudents}</div>
               </div>
+            </div>
 
-              {/* Primaire */}
-              <div className="space-y-1">
-                <div className="flex justify-between text-xs">
+            <div className="space-y-2">
+              {levelData.map((d) => (
+                <div key={d.name} className="flex justify-between text-xs">
                   <span className="font-semibold text-slate-600 flex items-center gap-1.5">
-                    <span className="w-2.5 h-2.5 bg-emerald-400 rounded-full"></span>Primaire</span>
-                  <span className="text-slate-500 font-bold">{levelCounts.Primaire} ({Math.round(levelCounts.Primaire / totalStudents * 100)}%)</span>
+                    <span className="w-2.5 h-2.5 rounded-full" style={{backgroundColor: d.color}}></span>{d.name}</span>
+                  <span className="text-slate-500 font-bold">{d.value} ({totalStudents > 0 ? Math.round(d.value / totalStudents * 100) : 0}%)</span>
                 </div>
-                <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
-                  <div className="bg-emerald-400 h-full rounded-full" style={{ width: `${(levelCounts.Primaire / totalStudents) * 100}%` }}></div>
-                </div>
-              </div>
-
-              {/* Secondaire */}
-              <div className="space-y-1">
-                <div className="flex justify-between text-xs">
-                  <span className="font-semibold text-slate-600 flex items-center gap-1.5">
-                    <span className="w-2.5 h-2.5 bg-amber-400 rounded-full"></span>Secondaire</span>
-                  <span className="text-slate-500 font-bold">{levelCounts.Secondaire} ({Math.round(levelCounts.Secondaire / totalStudents * 100)}%)</span>
-                </div>
-                <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
-                  <div className="bg-amber-400 h-full rounded-full" style={{ width: `${(levelCounts.Secondaire / totalStudents) * 100}%` }}></div>
-                </div>
-              </div>
+              ))}
             </div>
           </div>
 
@@ -400,44 +389,61 @@ export default function Dashboard({
           </div>
         </div>
 
-        {/* Alerts & Critical Payments */}
+        {/* Monitoring Widget & Alerts */}
         <div className="p-6 bg-white rounded-xl shadow-sm border border-slate-100 flex flex-col">
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center justify-between mb-6">
             <h3 className="font-bold text-slate-800 text-sm uppercase tracking-wider flex items-center gap-2">
-              <AlertTriangle className="w-4 h-4 text-rose-500" />
-              Alertes scolaires & Frais
+              <Activity className="w-4 h-4 text-rose-500" />
+              Monitoring d'Assiduité
             </h3>
-            <span className="text-[10px] bg-rose-50 text-rose-600 font-bold px-2 py-0.5 rounded">
-              Action requise
+            <span className="text-[10px] bg-rose-50 text-rose-600 font-bold px-2 py-0.5 rounded animate-pulse">
+              {students.filter(s => {
+                const total = s.attendance.length;
+                if (total === 0) return false;
+                const present = s.attendance.filter(a => a.status === "Présent" || a.status === "Retard").length;
+                return (present / total) * 100 < 70;
+              }).length} À RISQUE
             </span>
           </div>
 
           <div className="space-y-3 flex-1">
-            {delinquentStudents.slice(0, 2).map(s => (
-              <div key={s.id} className="p-3 bg-amber-50/60 border border-amber-100 rounded-lg flex gap-2">
-                <div className="p-1 text-amber-600"><AlertTriangle className="w-4 h-4" /></div>
-                <div className="flex-1 text-xs">
-                  <p className="font-bold text-slate-800">Scolarité en retard : {s.firstName} {s.lastName}</p>
-                  <p className="text-[10px] text-slate-500 mt-0.5">Reste dû : <span className="font-semibold text-amber-700">{formatCurrencyCompact(s.totalFees - s.paidFees)}</span> sur {s.totalFees} $</p>
-                </div>
-              </div>
-            ))}
-
-            {urgentAbsents.length > 0 ? (
-              urgentAbsents.slice(0, 2).map(s => (
-                <div key={s.id} className="p-3 bg-rose-50/60 border border-rose-100 rounded-lg flex gap-2">
-                  <div className="p-1 text-rose-600"><Bell className="w-4 h-4" /></div>
-                  <div className="flex-1 text-xs">
-                    <p className="font-bold text-slate-800">Absence non justifiée</p>
-                    <p className="text-[10px] text-slate-500 mt-0.5">{s.firstName} {s.lastName} ({s.className}) était absent le 03 Juin.</p>
+            {students.filter(s => {
+              const total = s.attendance.length;
+              if (total === 0) return false;
+              const present = s.attendance.filter(a => a.status === "Présent" || a.status === "Retard").length;
+              return (present / total) * 100 < 70;
+            }).slice(0, 4).map(s => {
+                const total = s.attendance.length;
+                const present = s.attendance.filter(a => a.status === "Présent" || a.status === "Retard").length;
+                const rate = Math.round((present / total) * 100);
+                return (
+                  <div key={s.id} className="p-3 bg-rose-50 border border-rose-100 rounded-lg flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <div className="text-rose-600 p-2 bg-rose-100 rounded-full"><AlertTriangle className="w-4 h-4" /></div>
+                      <div>
+                        <p className="font-bold text-slate-800 text-xs">{s.firstName} {s.lastName}</p>
+                        <p className="text-[10px] text-rose-700 font-medium">Taux: {rate}%</p>
+                      </div>
+                    </div>
+                    <button 
+                      onClick={() => onSelectStudent(s.id)}
+                      className="text-[10px] bg-rose-600 text-white font-semibold px-3 py-1.5 rounded hover:bg-rose-700 transition"
+                    >
+                      Intervenir
+                    </button>
                   </div>
+                )
+            })}
+
+            {students.filter(s => {
+              const total = s.attendance.length;
+              if (total === 0) return false;
+              const present = s.attendance.filter(a => a.status === "Présent" || a.status === "Retard").length;
+              return (present / total) * 100 < 70;
+            }).length === 0 && (
+                <div className="flex items-center gap-2 p-3 bg-emerald-50 text-emerald-700 rounded-lg text-xs">
+                    <CheckCircle className="w-4 h-4" /> Aucun élève à risque identifié.
                 </div>
-              ))
-            ) : (
-              <div className="p-3 bg-emerald-50/60 border border-emerald-100 rounded-lg flex gap-2 items-center">
-                <CheckCircle className="w-4 h-4 text-emerald-600" />
-                <p className="text-xs text-slate-700">Toutes les absences récentes ont été dument justifiées.</p>
-              </div>
             )}
           </div>
         </div>
@@ -470,6 +476,7 @@ export default function Dashboard({
         </div>
 
       </div>
+      <ChatbotModule />
     </div>
   );
 }

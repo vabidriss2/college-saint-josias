@@ -15,9 +15,10 @@ import { UserRole } from "../types";
 
 interface LoginPageProps {
   onLogin: (role: UserRole, username: string) => void;
+  onRegisterClick: () => void;
 }
 
-export default function LoginPage({ onLogin }: LoginPageProps) {
+export default function LoginPage({ onLogin, onRegisterClick }: LoginPageProps) {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
@@ -153,9 +154,17 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
               </button>
             </form>
 
-            <div className="mt-6 pt-5 border-t border-slate-850 text-[10px] text-slate-400 text-center">
-              Démos directes élèves/parents : <code className="text-emerald-400">student / student123</code> ou <code className="text-emerald-400">parent / parent123</code> <br />
-              Démos admin avec double facteur : <code className="text-indigo-400">superadmin / admin123</code> ou <code className="text-indigo-400">teacher / teacher123</code>
+            <div className="mt-6 pt-5 border-t border-slate-850 text-[10px] text-slate-400 text-center space-y-3">
+              <div>
+                Démos directes élèves/parents : <code className="text-emerald-400">student / student123</code> ou <code className="text-emerald-400">parent / parent123</code> <br />
+                Démos admin avec double facteur : <code className="text-indigo-400">superadmin / admin123</code> ou <code className="text-indigo-400">teacher / teacher123</code>
+              </div>
+              <button 
+                onClick={onRegisterClick}
+                className="text-indigo-400 font-bold hover:text-indigo-300 transition cursor-pointer underline"
+              >
+                Je n'ai pas de compte, m'inscrire
+              </button>
             </div>
           </>
         ) : (
@@ -169,7 +178,7 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
             </div>
 
             <div className="p-3 bg-indigo-950/40 border border-indigo-500/20 text-indigo-350 rounded-lg text-[10px] leading-relaxed">
-              Pour des raisons de sécurité de l'ERP de l'établissement, un code à usage unique (MFA) a été généré pour le profil <strong className="text-slate-100">{pendingLogin?.name}</strong>.
+              Pour des raisons de sécurité de l'ERP de l'établissement, un code à usage unique (MFA) a été <strong className="text-emerald-400">généré et envoyé sur votre terminal approuvé</strong> pour le profil <strong className="text-slate-100">{pendingLogin?.name}</strong>.
             </div>
 
             {errorMessage && (
